@@ -38,8 +38,11 @@ het linkeraanzicht opduikt.
 De app heeft geen server en geen internet nodig — three.js en jsPDF zitten in
 `app.bundle.js`.
 
-- **Op de telefoon:** zet de map op een webserver (of GitHub Pages) en open de
-  link. In Safari: Deel → *Zet op beginscherm* voor een app-icoon.
+- **Op de telefoon:** open de GitHub Pages-link (zie hieronder) en zet hem op
+  je beginscherm: in Safari via Deel → *Zet op beginscherm*, in Chrome via
+  het menu → *App installeren*. Je krijgt dan een eigen icoon, geen
+  browserbalk, en dankzij de service worker werkt hij daarna ook zonder
+  bereik — handig in een parkeergarage.
 - **Op de laptop:** open `index.html` gewoon vanaf de schijf, dubbelklikken
   is genoeg.
 - **Lokaal serveren** (handig bij ontwikkelen):
@@ -47,6 +50,24 @@ De app heeft geen server en geen internet nodig — three.js en jsPDF zitten in
   ```bash
   npm start          # http://localhost:8080
   ```
+
+## Online zetten met GitHub Pages
+
+De repo is al klaar om zo gepubliceerd te worden: `index.html` staat in de
+root, er is een `.nojekyll`, en `manifest.webmanifest` + `sw.js` zorgen voor
+de installatie op je telefoon.
+
+Instellen: **Settings → Pages → Source: Deploy from a branch → `main` /
+`(root)` → Save**. Na een minuutje staat de app op
+`https://casyi.github.io/tesla-dent-map/`.
+
+Let op: Pages voor een *private* repo hoort bij een betaald GitHub-plan. Op
+een gratis account moet de repo public staan om Pages te kunnen gebruiken.
+Er staan geen persoonlijke gegevens in de repo — alle markeringen blijven op
+je eigen telefoon staan — maar het blijft je eigen afweging.
+
+Nieuwe versie gepusht en je ziet hem niet? De service worker haalt de update
+op de achtergrond op; sluit de app en open hem opnieuw.
 
 ## Ontwikkelen
 

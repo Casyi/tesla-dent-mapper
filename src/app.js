@@ -1510,6 +1510,12 @@ addEventListener('keydown', e => {
   if (e.key === 'Escape') closeSheet();
 });
 
+/* offline beschikbaar houden zodra de app vanaf een webserver draait
+   (vanaf de schijf openen kan geen service worker registreren) */
+if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+  addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+}
+
 /* =====================================================================
    12. Start
    ===================================================================== */

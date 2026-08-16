@@ -1,0 +1,17 @@
+{
+  "name": "Deukjes · Tesla Model Y",
+  "short_name": "Deukjes",
+  "description": "Markeer deukjes en schade op de Tesla Model Y in 3D en maak er een rapport van voor de reparateur.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0b0e12",
+  "theme_color": "#0b0e12",
+  "lang": "nl",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
