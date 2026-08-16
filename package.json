@@ -1,0 +1,18 @@
+{
+  "name": "tesla-dent-map",
+  "version": "1.0.0",
+  "private": true,
+  "description": "3D schadekaart voor de Tesla Model Y: deukjes markeren en exporteren als PDF of JPG.",
+  "scripts": {
+    "build": "node build.mjs",
+    "watch": "node build.mjs --watch",
+    "start": "python3 -m http.server 8080"
+  },
+  "dependencies": {
+    "jspdf": "2.5.2",
+    "three": "0.169.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.24.0"
+  }
+}

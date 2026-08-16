@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#0b0e12">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="description" content="Markeer deukjes en schade op de Tesla Model Y in 3D en exporteer een rapport voor de reparateur.">
+<title>Deukjes · Tesla Model Y</title>
+
+
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0b0e12;
+    --panel: #141920;
+    --panel-2: #1c222b;
+    --line: #2a323d;
+    --text: #eef2f6;
+    --muted: #93a1b1;
+    --accent: #e82127;
+    --accent-soft: #ff4b50;
+    --ok: #29c76f;
+    --safe-b: env(safe-area-inset-bottom, 0px);
+    --safe-t: env(safe-area-inset-top, 0px);
+  }
+
+  html, body {
+    height: 100%;
+    overscroll-behavior: none;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+    touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  /* de breedte/hoogte moeten expliciet: een canvas is een replaced element en
+     rekt niet mee met alleen `inset: 0`. De tekenbuffer wordt los ingesteld,
+     zodat exporteren op een andere resolutie kan renderen. */
+  #scene { position: fixed; inset: 0; display: block; width: 100%; height: 100%; }
+
+  /* ---------------- top bar ---------------- */
+  .topbar {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    padding: calc(var(--safe-t) + 10px) 12px 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: linear-gradient(to bottom, rgba(11,14,18,.92), rgba(11,14,18,0));
+    pointer-events: none;
+    z-index: 5;
+  }
+  .topbar > * { pointer-events: auto; }
+
+  .brand {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.15;
+    margin-right: auto;
+    min-width: 0;
+  }
+  .brand b { font-size: 15px; letter-spacing: .2px; }
+  .brand span {
+    font-size: 11px;
+    color: var(--muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .iconbtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-width: 40px;
+    height: 40px;
+    padding: 0 11px;
+    border-radius: 12px;
+    border: 1px solid var(--line);
+    background: rgba(28,34,43,.82);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .iconbtn:active { transform: scale(.96); }
+  .iconbtn.on { background: var(--accent); border-color: var(--accent); }
+  .iconbtn svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* ---------------- bottom dock ---------------- */
+  .dock {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    padding: 10px 12px calc(var(--safe-b) + 12px);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    background: linear-gradient(to top, rgba(11,14,18,.94) 55%, rgba(11,14,18,0));
+    z-index: 5;
+  }
+
+  .chiprow {
+    display: flex;
+    gap: 7px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding: 2px 0;
+    touch-action: pan-x;
+  }
+  .chiprow::-webkit-scrollbar { display: none; }
+
+  .chip {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    height: 34px;
+    padding: 0 12px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: rgba(28,34,43,.9);
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .chip.on { color: #fff; border-color: currentColor; background: rgba(255,255,255,.06); }
+  .chip .dot { width: 11px; height: 11px; border-radius: 50%; background: currentColor; }
+
+  .mainrow { display: flex; gap: 9px; align-items: stretch; }
+
+  .bigbtn {
+    flex: 1;
+    height: 52px;
+    border-radius: 15px;
+    border: 1px solid var(--line);
+    background: var(--panel-2);
+    color: var(--text);
+    font-size: 15px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 9px;
+    cursor: pointer;
+  }
+  .bigbtn:active { transform: scale(.98); }
+  .bigbtn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .bigbtn.ghost { flex: 0 0 auto; width: 52px; }
+  .bigbtn svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+
+  .hint {
+    position: fixed;
+    left: 50%;
+    bottom: calc(var(--safe-b) + 132px);
+    transform: translateX(-50%);
+    background: rgba(20,25,32,.92);
+    border: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 12.5px;
+    padding: 7px 13px;
+    border-radius: 999px;
+    z-index: 4;
+    pointer-events: none;
+    max-width: 90vw;
+    text-align: center;
+    transition: opacity .3s;
+  }
+
+  /* ---------------- sheet ---------------- */
+  .scrim {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.55);
+    backdrop-filter: blur(2px);
+    z-index: 8;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .22s;
+  }
+  .scrim.open { opacity: 1; pointer-events: auto; }
+
+  .sheet {
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    max-height: 88vh;
+    background: var(--panel);
+    border-top-left-radius: 20px;
+    border-top-right-radius: 20px;
+    border-top: 1px solid var(--line);
+    z-index: 9;
+    transform: translateY(102%);
+    transition: transform .26s cubic-bezier(.2,.8,.25,1);
+    display: flex;
+    flex-direction: column;
+    overscroll-behavior: contain;
+  }
+  .sheet.open { transform: translateY(0); }
+
+  .sheet header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 14px 16px 10px;
+    border-bottom: 1px solid var(--line);
+  }
+  .sheet header h2 { font-size: 16px; margin-right: auto; }
+  .grabber {
+    width: 38px; height: 4px;
+    border-radius: 2px;
+    background: var(--line);
+    margin: 8px auto 0;
+  }
+  .sheet .body {
+    padding: 14px 16px calc(var(--safe-b) + 18px);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  label.field { display: flex; flex-direction: column; gap: 5px; font-size: 12px; color: var(--muted); font-weight: 600; }
+  input[type=text], input[type=date], textarea, select {
+    width: 100%;
+    background: var(--panel-2);
+    border: 1px solid var(--line);
+    color: var(--text);
+    border-radius: 11px;
+    padding: 11px 12px;
+    font-size: 15px;
+    font-family: inherit;
+    -webkit-user-select: text;
+    user-select: text;
+  }
+  textarea { resize: vertical; min-height: 64px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  .listitem {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 11px;
+    border: 1px solid var(--line);
+    border-radius: 13px;
+    background: var(--panel-2);
+    cursor: pointer;
+  }
+  .listitem .num {
+    flex: 0 0 auto;
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-size: 13px;
+    font-weight: 800;
+    color: #fff;
+  }
+  .listitem .txt { min-width: 0; flex: 1; }
+  .listitem .txt b { display: block; font-size: 14px; }
+  .listitem .txt span { display: block; font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .listitem .del {
+    background: none; border: none; color: var(--muted);
+    font-size: 20px; padding: 4px 8px; cursor: pointer;
+  }
+
+  .empty { color: var(--muted); font-size: 14px; text-align: center; padding: 26px 10px; line-height: 1.5; }
+
+  .rowbtns { display: flex; gap: 9px; flex-wrap: wrap; }
+  .rowbtns .bigbtn { min-width: 130px; }
+
+  .note { font-size: 12px; color: var(--muted); line-height: 1.5; }
+
+  .toast {
+    position: fixed;
+    left: 50%;
+    bottom: calc(var(--safe-b) + 96px);
+    transform: translate(-50%, 16px);
+    background: #fff;
+    color: #111;
+    font-size: 13.5px;
+    font-weight: 600;
+    padding: 11px 16px;
+    border-radius: 12px;
+    z-index: 20;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .2s, transform .2s;
+    max-width: 92vw;
+    text-align: center;
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+  .overlay {
+    position: fixed; inset: 0;
+    background: rgba(11,14,18,.94);
+    z-index: 30;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    text-align: center;
+  }
+  .overlay .card { max-width: 340px; display: flex; flex-direction: column; gap: 14px; align-items: center; }
+  .overlay h1 { font-size: 21px; }
+  .overlay p { font-size: 14px; color: var(--muted); line-height: 1.6; }
+  .overlay ul { text-align: left; font-size: 14px; color: var(--muted); line-height: 1.7; padding-left: 18px; }
+  .overlay.hidden { display: none; }
+
+  .spinner {
+    width: 30px; height: 30px;
+    border: 3px solid var(--line);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin .8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .badge {
+    display: inline-grid;
+    place-items: center;
+    min-width: 19px; height: 19px;
+    padding: 0 5px;
+    border-radius: 10px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 800;
+  }
+</style>
+</head>
+<body>
+
+<canvas id="scene"></canvas>
+
+<div class="topbar">
+  <div class="brand">
+    <b>Deukjes · Model Y</b>
+    <span id="subtitle">Nog geen schade gemarkeerd</span>
+  </div>
+  <button class="iconbtn" id="btnXray" title="Doorzichtig">
+    <svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+  </button>
+  <button class="iconbtn" id="btnReset" title="Beeld herstellen">
+    <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>
+  </button>
+  <button class="iconbtn" id="btnInfo" title="Auto­gegevens">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/></svg>
+  </button>
+</div>
+
+<div class="hint" id="hint">Draai met één vinger · knijp om te zoomen · tik op de auto om een deuk te zetten</div>
+
+<div class="dock">
+  <div class="chiprow" id="typeRow"></div>
+  <div class="chiprow" id="sizeRow"></div>
+  <div class="mainrow">
+    <button class="bigbtn primary" id="btnMode">
+      <svg viewBox="0 0 24 24"><path d="M12 21s7-5.4 7-11a7 7 0 1 0-14 0c0 5.6 7 11 7 11Z"/><circle cx="12" cy="10" r="2.4"/></svg>
+      <span id="modeLabel">Markeren aan</span>
+    </button>
+    <button class="bigbtn ghost" id="btnUndo" title="Laatste markering weg">
+      <svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10a6 6 0 0 1 0 12h-3"/></svg>
+    </button>
+    <button class="bigbtn ghost" id="btnList" title="Lijst">
+      <svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+    </button>
+    <button class="bigbtn ghost" id="btnExport" title="Exporteren">
+      <svg viewBox="0 0 24 24"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>
+    </button>
+  </div>
+</div>
+
+<div class="scrim" id="scrim"></div>
+
+<section class="sheet" id="sheet" aria-hidden="true">
+  <div class="grabber"></div>
+  <header>
+    <h2 id="sheetTitle">Titel</h2>
+    <button class="iconbtn" id="sheetClose">Sluiten</button>
+  </header>
+  <div class="body" id="sheetBody"></div>
+</section>
+
+<div class="toast" id="toast"></div>
+
+<div class="overlay hidden" id="loader">
+  <div class="card">
+    <div class="spinner"></div>
+    <p id="loaderText">Bezig…</p>
+  </div>
+</div>
+
+<div class="overlay hidden" id="welcome">
+  <div class="card">
+    <h1>Deukjes markeren</h1>
+    <p>Zet alle schade van jullie Tesla Model Y op één 3D-plattegrond en stuur die als PDF naar de reparateur.</p>
+    <ul>
+      <li>Sleep met één vinger om de auto te draaien</li>
+      <li>Knijp om te zoomen, twee vingers om te schuiven</li>
+      <li>Tik op de carrosserie om een deukje te zetten</li>
+      <li>Tik op een markering om hem aan te passen</li>
+    </ul>
+    <button class="bigbtn primary" id="welcomeOk" style="width:100%">Aan de slag</button>
+  </div>
+</div>
+
+<div class="overlay hidden" id="fatal">
+  <div class="card">
+    <h1>3D kon niet starten</h1>
+    <p id="fatalText"></p>
+  </div>
+</div>
+
+<script src="app.bundle.js"></script>
+</body>
+</html>
